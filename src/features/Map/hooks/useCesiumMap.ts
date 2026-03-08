@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { 
   Viewer, 
   Ion, 
-  UrlTemplateImageryProvider, 
   Cartesian3, 
-  Color 
+  Color,
+  ArcGisMapServerImageryProvider // 1. [新增] 引入 ArcGIS 影像服务提供者
 } from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 
@@ -20,9 +20,8 @@ export const useCesiumMap = () => {
 
     console.log("🌊 Hook: 初始化地图基础设施...");
 
-    // 1. 初始化 Viewer (注意：这里先不传 imageryProvider)
+    // 1. 初始化 Viewer
     const newViewer = new Viewer(containerRef.current, {
-      // 暂时设为 false，确保底图没加载出来前不传参数
       imageryProvider: undefined, 
       
       // UI 净化
@@ -38,58 +37,64 @@ export const useCesiumMap = () => {
       infoBox: false,
       
       // 渲染优化
-      // ⚠️ 调试建议：如果依然黑屏，先把这里改为 false 试试
       requestRenderMode: true, 
       maximumRenderTimeChange: Infinity,
       contextOptions: { webgl: { alpha: false } }
     });
 
-    // 2. --- 核心修复：手动暴力添加底图 ---
-    try {
-      // 先清除可能存在的默认图层
-      newViewer.imageryLayers.removeAll();
+    // 2. --- 核心修复：加载 ESRI 全球海洋水深图 ---
+    // 由于新版 Cesium 推荐使用异步的 fromUrl 方法加载 ArcGIS 服务，我们在此定义一个 async 函数
+    const loadOceanBasemap = async () => {
+      try {
+        newViewer.imageryLayers.removeAll();
 
-      // 定义 Dark Matter 底图
-      const darkProvider = new UrlTemplateImageryProvider({
-        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-        subdomains: ['a', 'b', 'c', 'd'],
-        maximumLevel: 19
-      });
+        // 请求 ESRI Ocean Basemap 服务
+        const oceanProvider = await ArcGisMapServerImageryProvider.fromUrl(
+          'https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer'
+        );
 
-      // 手动添加并打印日志
-      newViewer.imageryLayers.addImageryProvider(darkProvider);
-      console.log("✅ 底图图层已手动添加");
-    } catch (e) {
-      console.error("❌ 底图添加失败:", e);
-    }
+        newViewer.imageryLayers.addImageryProvider(oceanProvider);
+        console.log("✅ ESRI 海洋底图加载成功");
+        
+        // 底图加载后强制渲染一次，避免黑屏
+        newViewer.scene.requestRender();
+      } catch (e) {
+        console.error("❌ ESRI 海洋底图加载失败:", e);
+      }
+    };
+    
+    // 执行底图加载
+    loadOceanBasemap();
 
-    // 3. 场景美化
+    // 3. 场景美化 (适配海洋主题)
     const scene = newViewer.scene;
     scene.sun.show = false;
     scene.moon.show = false;
     scene.skyBox.show = false;
-    scene.backgroundColor = Color.fromCssColorString("#0b1018");
+    
+    // [调整] 将原本的 #0b1018 调整为偏海蓝的深色，与水深图边缘更好地融合
+    scene.backgroundColor = Color.fromCssColorString("#0A192F"); 
+    
     scene.fog.enabled = true;
     scene.fog.density = 0.0003;
     scene.skyAtmosphere.show = true;
-    scene.globe.depthTestAgainstTerrain = true;
-    scene.globe.baseColor = Color.BLACK;
+    scene.globe.depthTestAgainstTerrain = false; // 水深图不需要开启地形深度测试，设为 false 防止图层遮挡问题
+    
+    // [调整] 球体基础颜色也改为深海蓝
+    scene.globe.baseColor = Color.fromCssColorString("#0A192F");
 
     // 4. 初始视角
     newViewer.camera.flyTo({
       destination: Cartesian3.fromDegrees(124.0, 26.0, 8000000),
       orientation: {
-        heading: 0.0, // 正北方向
-        pitch: -Math.PI / 2, // 关键：垂直向下 (-90度)
+        heading: 0.0,
+        pitch: -Math.PI / 2,
         roll: 0.0
       },
-      duration: 2 // 稍微给点飞行时间，让用户有空间感
+      duration: 2 
     });
     
-    // 5. 强制触发一次渲染 (防止 requestRenderMode 导致首帧不刷新)
     scene.requestRender();
-
-    // 更新状态
     setViewer(newViewer);
 
     return () => {
