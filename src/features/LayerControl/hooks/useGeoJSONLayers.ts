@@ -1,140 +1,64 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { Viewer, GeoJsonDataSource, Color, ConstantProperty } from 'cesium';
-import { message } from 'antd';
-import { ZONE_TYPES } from '../config';
-import { getGeoJSONPaths } from '../../../utils/fileRegistry';
+// 替换文件: src/features/LayerControl/hooks/useGeoJSONLayers.ts
+import { useState } from 'react';
+import * as Cesium from 'cesium';
 
-export const useGeoJSONLayers = (viewer: Viewer | null) => {
-  const loadedDataMap = useRef<Map<string, GeoJsonDataSource[]>>(new Map());
-  
-  // 实时追踪选中状态，解决异步竞态
-  const activeLayersRef = useRef<Set<string>>(new Set());
-  
-  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
-  const [loadingLayers, setLoadingLayers] = useState<Set<string>>(new Set());
+// 通过参数接收 viewer
+export const useGeoJSONLayers = (viewer: Cesium.Viewer | null) => {
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    activeLayersRef.current = activeLayers;
-  }, [activeLayers]);
-
-  // --- 加载逻辑 ---
-  const loadLayerLogic = useCallback(async (countryKey: string, zoneSuffix: string) => {
-    if (!viewer) return;
-    
-    const layerId = `${countryKey}_${zoneSuffix}`;
-    const styleConfig = ZONE_TYPES.find(z => z.suffix === zoneSuffix);
-    if (!styleConfig) return;
-
-    const urls = getGeoJSONPaths(countryKey, zoneSuffix);
-    if (urls.length === 0) throw new Error("File not found");
-
-    const promises = urls.map(url => 
-      GeoJsonDataSource.load(url, {
-        stroke: styleConfig.color.withAlpha(0.8), // 边框稍微深一点
-        fill: styleConfig.fill ? styleConfig.color : Color.TRANSPARENT,
-        strokeWidth: styleConfig.strokeWidth,
-        clampToGround: true
-      })
-    );
-
-    const dataSources = await Promise.all(promises);
-
-    // Double Check: 加载完后如果用户取消了，直接销毁
-    if (!activeLayersRef.current.has(layerId)) {
-      console.log(`[LayerManager] 丢弃已取消图层: ${layerId}`);
-      return; 
+  const loadComplianceLayer = async (port: string, complianceTypes: string[]) => {
+    // 增加严格的校验拦截
+    if (!viewer) {
+      console.error('Cesium Viewer 未初始化，请等待底图加载完成。');
+      return;
     }
 
-    for (const ds of dataSources) {
-      const entities = ds.entities.values;
-      for (const entity of entities) {
-        if (entity.polygon) {
-           // [修复 2] 强制指定 zIndex，确保 12海里(3) > 24海里(2) > 200海里(1)
-           // @ts-ignore
-           entity.polygon.zIndex = new ConstantProperty(styleConfig.zIndex);
+    setIsLoading(true);
+
+    try {
+      // 1. 清理该模块之前加载的旧图层
+      viewer.dataSources.removeAll(); 
+
+      // 2. 遍历加载 GeoJSON
+      for (const type of complianceTypes) {
+        const geoJsonUrl = `/mock-data/${port}/${type}.geojson`; 
+
+        let polygonFillColor;
+        let outlineColor = Cesium.Color.WHITE;
+
+        if (type === 'ECA_Zone') {
+          polygonFillColor = Cesium.Color.RED.withAlpha(0.4);
+          outlineColor = Cesium.Color.RED.withAlpha(0.8);
+        } else if (type === 'Safe_Channel') {
+          polygonFillColor = Cesium.Color.GREEN.withAlpha(0.4);
+          outlineColor = Cesium.Color.GREEN.withAlpha(0.8);
+        } else if (type === 'Speed_Limit') {
+          polygonFillColor = Cesium.Color.YELLOW.withAlpha(0.3);
+          outlineColor = Cesium.Color.YELLOW.withAlpha(0.8);
+        } else {
+          polygonFillColor = Cesium.Color.BLUE.withAlpha(0.3);
         }
+
+        const dataSource = await Cesium.GeoJsonDataSource.load(geoJsonUrl, {
+          stroke: outlineColor,          
+          fill: polygonFillColor,        
+          strokeWidth: 3,                
+        });
+
+        dataSource.name = `${port}_${type}`;
+        await viewer.dataSources.add(dataSource);
       }
-      await viewer.dataSources.add(ds);
-    }
-
-    loadedDataMap.current.set(layerId, dataSources);
-    
-    // [修复 1] 加载完成后，强制重绘一帧，确保画面立即显示
-    viewer.scene.requestRender();
-
-  }, [viewer]);
-
-  // --- 移除逻辑 ---
-  const removeLayerLogic = useCallback((countryKey: string, zoneSuffix: string) => {
-    if (!viewer) return;
-    const layerId = `${countryKey}_${zoneSuffix}`;
-    const dataSources = loadedDataMap.current.get(layerId);
-    
-    if (dataSources && dataSources.length > 0) {
-      dataSources.forEach(ds => {
-        viewer.dataSources.remove(ds, true);
-      });
-      loadedDataMap.current.delete(layerId);
       
-      // [修复 1] 移除完成后，强制重绘一帧，解决"鼠标动了才消失"的问题
+      // 强制触发一次重绘，确保画面立即更新
       viewer.scene.requestRender();
-      
-      console.log(`[LayerManager] 已销毁并重绘: ${layerId}`);
-    }
-  }, [viewer]);
 
-  // --- 切换逻辑 (保持不变) ---
-  const toggleLayer = async (countryKey: string, zoneSuffix: string, checked: boolean) => {
-    const layerId = `${countryKey}_${zoneSuffix}`;
-    setActiveLayers(prev => {
-      const next = new Set(prev);
-      checked ? next.add(layerId) : next.delete(layerId);
-      return next;
-    });
-
-    if (checked) {
-      setLoadingLayers(prev => new Set(prev).add(layerId));
-      try {
-        await loadLayerLogic(countryKey, zoneSuffix);
-        if (activeLayersRef.current.has(layerId)) {
-           message.success(`${layerId} 加载成功`);
-        }
-      } catch (err) {
-        // console.warn(err); // 找不到文件不报错，静默失败即可
-        setActiveLayers(prev => { const next = new Set(prev); next.delete(layerId); return next; });
-      } finally {
-        setLoadingLayers(prev => { const next = new Set(prev); next.delete(layerId); return next; });
-      }
-    } else {
-      removeLayerLogic(countryKey, zoneSuffix);
+    } catch (error) {
+      console.error('动态解析 GeoJSON 渲染三维地图失败:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const toggleCountry = (countryKey: string, checked: boolean) => {
-    const allIds = ZONE_TYPES.map(z => `${countryKey}_${z.suffix}`);
-    setActiveLayers(prev => {
-      const next = new Set(prev);
-      allIds.forEach(id => checked ? next.add(id) : next.delete(id));
-      return next;
-    });
-
-    allIds.forEach(layerId => {
-      const suffix = layerId.split('_')[1];
-      const isLoaded = loadedDataMap.current.has(layerId);
-      const isLoading = loadingLayers.has(layerId);
-
-      if (checked) {
-        if (!isLoaded && !isLoading) {
-          setLoadingLayers(prev => new Set(prev).add(layerId));
-          loadLayerLogic(countryKey, suffix)
-            .catch(() => {})
-            .finally(() => setLoadingLayers(prev => { const next = new Set(prev); next.delete(layerId); return next; }));
-        }
-      } else {
-        removeLayerLogic(countryKey, suffix);
-      }
-    });
-  };
-
-  return { activeLayers, loadingLayers, toggleLayer, toggleCountry };
+  return { loadComplianceLayer, isLoading };
 };
