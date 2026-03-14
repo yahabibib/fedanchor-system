@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Tag, Progress, Card, Divider, Typography, Tooltip, Segmented } from 'antd';
+import { Button, Tag, Progress, Card, Divider, Typography, Tooltip, Segmented, Timeline } from 'antd';
 import { 
   MenuUnfoldOutlined, MenuFoldOutlined, 
   SafetyCertificateOutlined, WarningOutlined, SyncOutlined, 
   FileTextOutlined, BookOutlined, LinkOutlined, GlobalOutlined, BankOutlined,
   RadarChartOutlined, EnvironmentOutlined, AppstoreOutlined, PartitionOutlined,
-  ThunderboltOutlined, ArrowDownOutlined
+  HistoryOutlined, LinkOutlined as LinkIcon
 } from '@ant-design/icons';
 import { useSystemStore } from '../../stores/useSystemStore';
 import TechCard from '../../components/TechCard';
@@ -27,45 +27,6 @@ const RightPanel: React.FC = () => {
     else setCollapsed(true);
   }, [selectedTargetId]);
 
-  // [UI 组件] 带有置信度环的标题
-  const RenderSourceHeader = ({ title, url, icon, confidence }: { title: string, url?: string, icon: React.ReactNode, confidence?: number }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {icon}
-        <span style={{ fontWeight: 'bold', color: '#fff' }}>{title}</span>
-      </div>
-      
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        {/* 置信度展示 */}
-        {confidence !== undefined && (
-          <Tooltip title={`适用置信度: ${(confidence * 100).toFixed(0)}%`}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '10px' }}>
-               <Progress 
-                 type="circle" 
-                 percent={Math.round(confidence * 100)} 
-                 width={16} 
-                 strokeWidth={12} 
-                 showInfo={false} 
-                 strokeColor={confidence > 0.8 ? '#10b981' : '#f59e0b'} 
-               />
-               <span style={{ fontSize: '10px', color: confidence > 0.8 ? '#10b981' : '#f59e0b', fontFamily: 'Rajdhani', fontWeight: 'bold' }}>
-                 {(confidence * 100).toFixed(0)}%
-               </span>
-            </div>
-          </Tooltip>
-        )}
-        
-        {url && (
-          <Tooltip title="跳转至官方来源">
-            <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#00f0ff' }}>
-              <LinkOutlined />
-            </a>
-          </Tooltip>
-        )}
-      </div>
-    </div>
-  );
-
   const renderContent = () => {
     if (!selectedTargetId) {
       return (
@@ -79,13 +40,13 @@ const RightPanel: React.FC = () => {
     if (analysisStatus === 'analyzing') {
       return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-           <h3 style={{ color: '#00f0ff', fontFamily: 'Rajdhani' }}>FedAnchor Protocol</h3>
+           <h3 style={{ color: '#00f0ff', fontFamily: 'Rajdhani' }}>Compliance Engine</h3>
            <div style={{ margin: '30px 0' }}>
              <Progress type="circle" percent={72} status="active" strokeColor={{ '0%': '#108ee9', '100%': '#00f0ff' }} format={() => <span style={{fontSize: '12px', color: '#fff'}}>Aligning</span>} />
            </div>
            <div style={{ textAlign: 'left', fontSize: '12px', color: '#94a3b8' }}>
              <p>✔ GIS: 空间定位锁定</p>
-             <p style={{ color: '#00f0ff' }}><SyncOutlined spin style={{ marginRight: '8px' }} />FedAnchor: 联邦图谱推理中...</p>
+             <p style={{ color: '#00f0ff' }}><SyncOutlined spin style={{ marginRight: '8px' }} />正在执行本地沙箱与公域双向映射...</p>
              <p>⚡ RAG: 检索全球海事判例库...</p>
            </div>
         </div>
@@ -95,14 +56,11 @@ const RightPanel: React.FC = () => {
     if (analysisStatus === 'done' && alignmentResult) {
       const statusColor = alignmentResult.status === 'violation' ? '#ef4444' : alignmentResult.status === 'warning' ? '#f59e0b' : '#10b981';
       const StatusIcon = alignmentResult.status === 'violation' ? WarningOutlined : SafetyCertificateOutlined;
-      
-      const similarityPercent = (alignmentResult.similarity * 100).toFixed(1);
-      const simColor = alignmentResult.similarity > 0.85 ? '#10b981' : alignmentResult.similarity > 0.7 ? '#f59e0b' : '#ef4444';
 
       return (
-        <div className="fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div className="fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '15px', height: '100%' }}>
           
-          {/* 1. 顶部状态卡片 (固定) */}
+          {/* 1. 顶部状态卡片 */}
           <div style={{ flexShrink: 0 }}>
              <div style={{ 
                background: 'linear-gradient(90deg, rgba(0, 240, 255, 0.15) 0%, rgba(0, 0, 0, 0) 100%)', 
@@ -133,12 +91,12 @@ const RightPanel: React.FC = () => {
              </div>
           </div>
 
-          {/* 2. 视图切换器 (固定) */}
+          {/* 2. 视图切换器 */}
           <div style={{ flexShrink: 0 }}>
             <Segmented
               options={[
                 { label: '文本研判', value: 'text', icon: <AppstoreOutlined /> },
-                { label: '联邦图谱', value: 'graph', icon: <PartitionOutlined /> },
+                { label: '双向映射图谱', value: 'graph', icon: <PartitionOutlined /> },
               ]}
               value={viewMode}
               onChange={(val) => setViewMode(val as 'text' | 'graph')}
@@ -148,109 +106,117 @@ const RightPanel: React.FC = () => {
           </div>
 
           {/* 3. 内容区 (可滚动) */}
-          {/* 模式 A: 文本模式 (上下布局) */}
-          {viewMode === 'text' && (
-            <div className="custom-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}> {/* gap 设为0，由中间的 bridge 控制间距 */}
-               
-               {/* 3.1 国内法 Source */}
-               <Card 
-                  size="small" 
-                  title={<RenderSourceHeader title="国内法依据 (Source)" url={alignmentResult.source.url} icon={<BankOutlined style={{color:'#ef4444'}} />} confidence={alignmentResult.source.confidence} />} 
-                  bordered={false} 
-                  style={{background:'rgba(239, 68, 68, 0.05)', border:'1px solid rgba(239, 68, 68, 0.2)', marginBottom: '0'}} 
-                  headStyle={{color:'#fff', borderBottom:'1px solid rgba(239, 68, 68, 0.2)', fontSize:'12px', padding:'0 10px'}} 
-                  bodyStyle={{padding:'10px'}}
-               >
-                  <div style={{fontWeight:'bold', color:'#e2e8f0', marginBottom:'4px', fontSize:'12px'}}>{alignmentResult.source.title}</div>
-                  <Paragraph ellipsis={{rows:5, expandable:true, symbol:<span style={{color:'#00f0ff'}}>+</span>}} style={{color:'#94a3b8', fontSize:'12px', marginBottom:0, lineHeight:'1.5'}}>
-                     {alignmentResult.source.content}
-                  </Paragraph>
-               </Card>
-
-               {/* 3.2 [核心] 上下连接器 (Alignment Bridge) */}
-               <div style={{ position: 'relative', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {/* 背景连接线 */}
-                  <div style={{ position: 'absolute', top: 0, bottom: 0, width: '1px', background: `linear-gradient(to bottom, rgba(239,68,68,0.3), ${simColor}, rgba(16,185,129,0.3))`, left: '50%' }}></div>
-                  
-                  {/* 中间胶囊 */}
-                  <div style={{ 
-                    position: 'relative', zIndex: 2,
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    background: '#0b1018', border: `1px solid ${simColor}`, borderRadius: '20px',
-                    padding: '4px 15px',
-                    boxShadow: `0 0 10px ${simColor}40`
-                  }}>
-                    <ThunderboltOutlined style={{ color: simColor }} />
-                    <span style={{ color: '#cbd5e1', fontSize: '11px' }}>FedAnchor 向量对齐度</span>
-                    <span style={{ color: simColor, fontWeight: 'bold', fontFamily: 'Rajdhani', fontSize: '14px' }}>
-                      {similarityPercent}%
-                    </span>
+          <div className="custom-scroll" style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
+            
+            {viewMode === 'text' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                
+                {/* 风险预警视窗 */}
+                <div style={{ background: 'rgba(255, 77, 79, 0.1)', border: '1px solid rgba(255, 77, 79, 0.4)', borderRadius: '6px', padding: '10px' }}>
+                  <div style={{ color: '#ff4d4f', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <WarningOutlined /> 风险预警视窗
                   </div>
-               </div>
+                  <div style={{ color: '#ffccc7', fontSize: '12px', lineHeight: '1.6' }}>
+                    {alignmentResult.riskWarnings?.map((warn, idx) => (
+                      <div key={idx}>• {warn}</div>
+                    ))}
+                  </div>
+                </div>
 
-               {/* 3.3 国际法 Target */}
-               <Card 
-                  size="small" 
-                  title={<RenderSourceHeader title="国际法参考 (Target)" url={alignmentResult.target.url} icon={<GlobalOutlined style={{color:'#10b981'}} />} confidence={alignmentResult.target.confidence} />} 
-                  bordered={false} 
-                  style={{background:'rgba(16, 185, 129, 0.05)', border:'1px solid rgba(16, 185, 129, 0.2)', marginBottom: '15px'}} 
-                  headStyle={{color:'#fff', borderBottom:'1px solid rgba(16, 185, 129, 0.2)', fontSize:'12px', padding:'0 10px'}} 
-                  bodyStyle={{padding:'10px'}}
-               >
-                  <div style={{fontWeight:'bold', color:'#e2e8f0', marginBottom:'4px', fontSize:'12px'}}>{alignmentResult.target.title}</div>
-                  <Paragraph ellipsis={{rows:5, expandable:true, symbol:<span style={{color:'#00f0ff'}}>+</span>}} style={{color:'#94a3b8', fontSize:'12px', marginBottom:0, lineHeight:'1.5'}}>
-                     {alignmentResult.target.content}
-                  </Paragraph>
-               </Card>
+                {/* 核心对齐展示区：映射循环渲染 */}
+                <div>
+                  <div style={{ color: '#00f0ff', fontSize: '13px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <PartitionOutlined /> 核心对齐结果 ({alignmentResult.alignments?.length || 0} 项发现)
+                  </div>
+                  
+                  {alignmentResult.alignments?.map((align, index) => (
+                    <div key={index} style={{ marginBottom: index === alignmentResult.alignments.length - 1 ? '0' : '24px' }}>
+                      
+                      {/* 上层: 企业沙箱 */}
+                      <Card size="small" bordered={false} 
+                        style={{ background: 'rgba(0, 240, 255, 0.05)', border: '1px solid rgba(0, 240, 255, 0.2)' }}
+                        headStyle={{ borderBottom: '1px solid rgba(0, 240, 255, 0.1)', color: '#00f0ff', fontSize: '12px', padding: '0 10px' }}
+                        bodyStyle={{ padding: '10px' }}
+                        title={<span><BankOutlined /> {align.enterpriseRule.source || '本地沙箱'}</span>}>
+                        <div style={{ fontWeight: 'bold', color: '#fff', fontSize: '12px', marginBottom: '4px' }}>{align.enterpriseRule.title}</div>
+                        <Paragraph style={{ color: '#cbd5e1', fontSize: '12px', marginBottom: 0 }}>{align.enterpriseRule.clause}</Paragraph>
+                      </Card>
 
-               {/* 3.4 案例 Cases */}
-               {alignmentResult.cases.length > 0 && (
-                 <div>
-                   <Divider orientation="left" style={{borderColor:'#334155', color:'#faad14', margin: '10px 0', fontSize: '12px'}}><BookOutlined/> 历史指导案例</Divider>
-                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '10px' }}>
-                     {alignmentResult.cases.map((c, i) => (
-                        <Card key={i} size="small" bordered={false} style={{background:'rgba(250,173,20,0.1)', border:'1px solid rgba(250,173,20,0.2)'}} bodyStyle={{padding:'10px'}}>
-                           <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom: '5px'}}>
-                              <div style={{fontWeight:'bold', color:'#faad14', fontSize:'13px', maxWidth:'70%'}}>{c.title}</div>
-                              <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
-                                 <Tag color="gold" style={{margin:0, fontSize:'10px', lineHeight:'16px'}}>{c.year}</Tag>
-                                 {c.confidence && (
-                                   <div style={{display:'flex', alignItems:'center', gap:'2px'}}>
-                                     <ThunderboltOutlined style={{color: '#f59e0b', fontSize:'10px'}} />
-                                     <span style={{fontFamily:'Rajdhani', color:'#f59e0b', fontSize:'12px', fontWeight:'bold'}}>{(c.confidence * 100).toFixed(0)}%</span>
-                                   </div>
-                                 )}
-                              </div>
-                           </div>
-                           <div style={{color:'#cbd5e1', fontSize:'12px', lineHeight:'1.4'}}>{c.verdict}</div>
-                        </Card>
-                     ))}
+                      {/* 中间: 对齐锚点 */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ height: '15px', borderLeft: '2px dashed rgba(0, 240, 255, 0.3)' }}></div>
+                        <div style={{ 
+                          background: 'rgba(0, 240, 255, 0.1)', border: '1px solid #00f0ff', borderRadius: '20px', 
+                          padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 0 10px rgba(0,240,255,0.2)' 
+                        }}>
+                          <LinkIcon style={{ color: '#00f0ff' }} />
+                          <span style={{ color: '#e2e8f0', fontSize: '12px' }}>对齐度: <strong style={{ color: '#00f0ff' }}>{align.score}%</strong></span>
+                          <Divider type="vertical" style={{ borderColor: 'rgba(255,255,255,0.2)' }} />
+                          <span style={{ color: '#e2e8f0', fontSize: '12px' }}>锚点: <Tag color="cyan" style={{ border: 'none', background: 'transparent', margin: 0 }}>{align.anchorConcept}</Tag></span>
+                        </div>
+                        <div style={{ height: '15px', borderLeft: '2px dashed rgba(0, 240, 255, 0.3)' }}></div>
+                      </div>
+
+                      {/* 下层: 公域法规 */}
+                      <Card size="small" bordered={false} 
+                        style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.15)' }}
+                        headStyle={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#e2e8f0', fontSize: '12px', padding: '0 10px' }}
+                        bodyStyle={{ padding: '10px' }}
+                        title={<span><GlobalOutlined /> {align.publicLaw.source || '公域节点'}</span>}>
+                        <div style={{ fontWeight: 'bold', color: '#fff', fontSize: '12px', marginBottom: '4px' }}>{align.publicLaw.title}</div>
+                        <Paragraph style={{ color: '#94a3b8', fontSize: '12px', marginBottom: 0 }}>{align.publicLaw.clause}</Paragraph>
+                      </Card>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 历史研判参考区 */}
+                <div>
+                  <Divider orientation="left" style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#faad14', margin: '10px 0', fontSize: '12px' }}>
+                    <HistoryOutlined /> 历史违规参考
+                  </Divider>
+                  <Timeline style={{ paddingLeft: '4px', marginTop: '10px' }}
+                    items={alignmentResult.historicalCases?.map(item => ({
+                      color: '#ff4d4f',
+                      children: (
+                        <div style={{ top: '-4px', position: 'relative' }}>
+                          <div style={{ fontSize: '12px', marginBottom: '4px' }}>
+                            <span style={{ color: '#fff', fontWeight: 500, marginRight: '8px' }}>{item.title}</span>
+                            <span style={{ color: '#94a3b8' }}>{item.date}</span>
+                          </div>
+                          <div style={{ color: '#cbd5e1', fontSize: '12px', marginBottom: '6px' }}>{item.description}</div>
+                          <Tag color="error" style={{ border: 'none', background: 'rgba(255, 77, 79, 0.15)', color: '#ffccc7' }}>{item.penalty}</Tag>
+                        </div>
+                      ),
+                    }))}
+                  />
+                </div>
+
+              </div>
+            )}
+
+            {/* ================= 模式 B: 图谱模式 ================= */}
+            {viewMode === 'graph' && (
+               <div className="fade-in-up" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '350px' }}>
+                 <div style={{ flexShrink: 0, marginBottom: '10px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                   <Button size="small" type={graphSource === 'analysis' ? 'primary' : 'dashed'} onClick={() => setGraphSource('analysis')} style={{ fontSize: '12px' }}>本次对齐</Button>
+                   <Button size="small" type={graphSource === 'knowledge' ? 'primary' : 'dashed'} onClick={() => setGraphSource('knowledge')} style={{ fontSize: '12px' }}>海事全量知识图谱</Button>
+                 </div>
+                 
+                 <div style={{ flex: 1, minHeight: 0 }}>
+                    {/* 我们将带有 graphData 的 alignmentResult 传递过去 */}
+                    <FedAnchorGraph data={graphSource === 'analysis' ? alignmentResult : legalKGData} mode={graphSource} width={420} height={320} />
+                 </div>
+
+                 <div style={{ flexShrink: 0, marginTop: '10px', padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                   <div style={{ color: '#00f0ff', fontWeight: 'bold', marginBottom: '2px', fontSize: '12px' }}> <PartitionOutlined /> 引擎研判说明</div>
+                   <div style={{ fontSize: '11px', color: '#cbd5e1', lineHeight: '1.3' }}>
+                     {graphSource === 'analysis' ? "中心节点代表本次提炼的核心语义锚点，青色虚线展示双向规则的向量对齐映射。" : "基于公域数据与企业私有数据构建的全局海事实体关系拓扑。"}
                    </div>
                  </div>
-               )}
-            </div>
-          )}
-
-          {/* 模式 B: 图谱模式 */}
-          {viewMode === 'graph' && (
-             <div className="fade-in-up" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-               <div style={{ flexShrink: 0, marginBottom: '10px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                 <Button size="small" type={graphSource === 'analysis' ? 'primary' : 'dashed'} onClick={() => setGraphSource('analysis')} style={{ fontSize: '12px' }}>本次对齐</Button>
-                 <Button size="small" type={graphSource === 'knowledge' ? 'primary' : 'dashed'} onClick={() => setGraphSource('knowledge')} style={{ fontSize: '12px' }}>知识图谱</Button>
                </div>
-               
-               <div style={{ flex: 1, minHeight: 0 }}>
-                  <FedAnchorGraph data={graphSource === 'analysis' ? alignmentResult : legalKGData} mode={graphSource} width={420} height={320} />
-               </div>
-
-               <div style={{ flexShrink: 0, marginTop: '10px', padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
-                 <div style={{ color: '#00f0ff', fontWeight: 'bold', marginBottom: '2px', fontSize: '12px' }}> <PartitionOutlined /> 图谱解读</div>
-                 <div style={{ fontSize: '11px', color: '#cbd5e1', lineHeight: '1.3' }}>
-                   {graphSource === 'analysis' ? "青色虚线代表 FedAnchor 计算出的高维向量对齐路径。" : "展示了基于 UNCLOS 构建的海事法律实体关系本体网络。"}
-                 </div>
-               </div>
-             </div>
-          )}
+            )}
+          </div>
         </div>
       );
     };
